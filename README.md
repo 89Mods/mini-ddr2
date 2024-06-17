@@ -8,29 +8,22 @@ Currently only works with x4 DRAMs. To demonstrate basic functionality, the CPLD
 
 After releasing the reset input, the CPLD runs through the DDR2 initialization sequence. Slowly. I optimized it for size, not speed, so it takes several tens of thousands of clock cycles to complete. Once it does, the controller enters the main state machine.
 
-## Idle
+When idle, the controller spams DDR2 refresh commands as fast as it can, only interrupted by a falling edge on ``CS_f`` requesting a memory access. ``A_f`` is split into a bank, column and row address and the proper bank and column activated before the memory access.
 
-The controller idles by spamming refresh commands to the DDR2 as fast as it can, which is only interrupted by a falling edge on the ``CS_f`` input, which it recognizes at the end of the current refresh by moving on to the next state. ``ready`` immediately goes low when ``CS_f`` does.
+Both reads and writes use the minimum burst length of 4, but are only byte-wide, using the first two nibbles in the burst, least-significant half first.
 
-## Activate
+At the start of any read or write leaving the idle loop, the controller starts a timer, only precharging the current bank and returning to idle mode once this expires. This allows for further reads or writes to the same bank and row to be registered and processed immediatly.
 
-The input address, ``A_f``, is split into row, column and bank addresses and a ACTIVATE command is sent to the DDR2 to select the bank and row. The controller then hits the only fork in its state machine depending on the state of ``WEb_f``.
+If the bank or row change, a precharge and then activate are executed to switch to the new addresses. This does not reset the timer.
 
-## Read
+# Timing
 
-A READ with auto-precharge is sent to the DDR2 and a byte is read from the first two nibbles transmitted and presented on ``Q_f`` while the controller returns to the idle state. ``ready`` goes high. The read data continues to be visible on ``Q_f`` until ``CS_f`` goes high.
+Max tested clock speed for the CPLD is 85MHz. This is divided by two to arrive at the DDR2 clock of 42.5MHz. Works fine, despite violating the min clock speed for the DDR2 chip in the example by over 150MHz.
 
-## Write
+Quartus says the design does not meet timings above this clock speed. Propagation delay times begin to mess with the timing at this stage anyways.
 
-A WRITE with auto-precharge is sent to the DDR2 and a byte stored into the first two nibbles (controlled via DM). Afterwards, the controller returns to the idle state. ``ready`` goes high.
+The best-case scenario is a sequential write, taking 12 CPLD clock cycles (141ns).
 
-# Speed
+The worst case is a non-sequential read requiring a switch to a different row, at 22 CPLD clock cycles (258ns).
 
-This thing is slow. Real slow. This is due to several factors:
-
-* The CPLD does not make timings above 80MHz
-* The CPLD clock is divided by two to obtain the DDR2 clock (40MHz)
-* A precharge is run after every individual read and write, even if they’re in the same row, due to the simplistic state machine
-* ``CS_f`` is only recognized at the conclusion of the current refresh cycle, which may be as many as 5 clocks.
-
-I am hoping to improve this in the future.
+It may be possible to improve this by playing with the timing parameters. Sadly, this design uses 240/240 LUs, so there is otherwise no more room for improvement.

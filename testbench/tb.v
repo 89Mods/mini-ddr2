@@ -1,7 +1,7 @@
 `default_nettype none
 `timescale 1ps / 1ps
 
-module tb(input clk, output init_done, input CEb, input WEb, input reset, input [22:0] addr, input [7:0] din, output [7:0] dout);
+module tb(input clk, output init_done, input CEb, input WEb, input reset, input [22:0] addr, input [7:0] din, output [7:0] dout, output ready);
 
 wire ddr_clk;
 wire ddr_clk_c;
@@ -33,7 +33,7 @@ dram_controller dram_controller(
     .DQS(DQS),
     .DM(DM),
     .CKE(CKE),
-    .ready(),
+    .ready(ready),
     
     .CEb_in(CEb),
     .Q_f(Q_f),
@@ -41,7 +41,7 @@ dram_controller dram_controller(
     .A_f(addr),
     .rst_b(reset),
     
-    .dbg0(init_done)
+    .DQS_b(init_done)
 );
 
 tri1 DQS_n;
